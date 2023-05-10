@@ -1,60 +1,45 @@
 import { ethers } from 'ethers';
 
-interface Delegate {
-  delegateAddress: string;
-  tokenAddress: string;
-  tokenChainId: number;
-}
+import type { DelegateWithProfile, DelegateWithAddress } from './types';
 
-class DelegateRegistry {
-  private readonly contractAddress: string;
-  private readonly abi: any;
-  private readonly signerOrProvider: ethers.Signer | ethers.providers.Provider;
-  private readonly contract: ethers.Contract;
+export class DelegateRegistry {
+  private contract: ethers.Contract;
+  private provider: ethers.providers.JsonRpcProvider;
 
-  constructor(
-    contractAddress: string,
-    signerOrProvider: ethers.Signer | ethers.providers.Provider
-  ) {
-    this.contractAddress = contractAddress;
-    this.abi = [
-      'function delegates(address,address,uint256) view returns (address delegateAddress, address tokenAddress, uint256 tokenChainId)',
-      'function registerDelegate(address,uint256,bytes)',
-      'function deregisterDelegate()',
-      'function updateDelegateMetadata(address,uint256,bytes)',
+  constructor(providerUrl: string, contractAddress: string) {
+    this.provider = new ethers.providers.JsonRpcProvider(providerUrl);
+    const signer = this.provider.getSigner();
+
+    const abi = [
+      // insert your contract's ABI here
+      // you can generate it using the solc compiler or Remix IDE
     ];
-    this.signerOrProvider = signerOrProvider;
-    this.contract = new ethers.Contract(this.contractAddress, this.abi, this.signerOrProvider);
+
+    this.contract = new ethers.Contract(contractAddress, abi, this.provider).connect(signer);
   }
 
-  async getDelegate(
+  public async registerDelegate(delegate: DelegateWithProfile): Promise<void> {
+    await this.contract.registerDelegate(
+      delegate.tokenAddress,
+      delegate.tokenChainId,
+      JSON.stringify(delegate.profile)
+    );
+  }
+
+  public async deregisterDelegate(tokenAddress: string, tokenChainId: number): Promise<void> {
+    await this.contract.deregisterDelegate(tokenAddress, tokenChainId);
+  }
+
+  public async getDelegate(
     delegateAddress: string,
     tokenAddress: string,
     tokenChainId: number
-  ): Promise<Delegate> {
-    const [delegate] = await this.contract.delegates(delegateAddress, tokenAddress, tokenChainId);
-    return delegate;
-  }
-
-  async registerDelegate(
-    tokenAddress: string,
-    tokenChainId: number,
-    metadata: string
-  ): Promise<void> {
-    await this.contract.registerDelegate(tokenAddress, tokenChainId, metadata);
-  }
-
-  async deregisterDelegate(): Promise<void> {
-    await this.contract.deregisterDelegate();
-  }
-
-  async updateDelegateMetadata(
-    tokenAddress: string,
-    tokenChainId: number,
-    metadata: string
-  ): Promise<void> {
-    await this.contract.updateDelegateMetadata(tokenAddress, tokenChainId, metadata);
+  ): Promise<DelegateWithAddress> {
+    const delegate = await this.contract.getDelegate(delegateAddress, tokenAddress, tokenChainId);
+    return {
+      delegateAddress: delegate.delegateAddress,
+      tokenAddress: delegate.tokenAddress,
+      tokenChainId: delegate.tokenChainId,
+    };
   }
 }
-
-export default DelegateRegistry;
